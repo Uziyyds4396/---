@@ -1,0 +1,1692 @@
+# 桌宠三连 · 安卓版（薄肌 · 太对了 · 峰哥）—— 单文件版
+# 用法：新建一个 GitHub 仓库 → Add file → Create new file
+#       文件名填 .github/workflows/build.yml → 把本文件全文粘进去 → Commit
+#       等 3–5 分钟，去仓库的 Releases 下载 PetTrio.apk
+# 素材在编译时从 Ganzhe2028 的三个原版仓库拉取，版权归原权利人，仅供学习玩梗，请勿商用。
+
+name: Build APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 生成项目文件
+        run: |
+          mkdir -p "$(dirname 'settings.gradle')"
+          cat > 'settings.gradle' <<'PETTRIO_FILE_END'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "PetTrio"
+          include ':app'
+          PETTRIO_FILE_END
+          mkdir -p "$(dirname 'build.gradle')"
+          cat > 'build.gradle' <<'PETTRIO_FILE_END'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+          }
+          PETTRIO_FILE_END
+          mkdir -p "$(dirname 'gradle.properties')"
+          cat > 'gradle.properties' <<'PETTRIO_FILE_END'
+          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
+          android.nonTransitiveRClass=true
+          PETTRIO_FILE_END
+          mkdir -p "$(dirname 'app/build.gradle')"
+          cat > 'app/build.gradle' <<'PETTRIO_FILE_END'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'local.pettrio'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId 'local.pettrio'
+                  minSdk 26
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }
+
+              // 固定签名：以后重新编译的新版本可以直接覆盖安装，不用先卸载。
+              signingConfigs {
+                  fixed {
+                      storeFile file('pettrio.keystore')
+                      storePassword 'pettrio'
+                      keyAlias 'pettrio'
+                      keyPassword 'pettrio'
+                      storeType 'pkcs12'
+                  }
+              }
+
+              buildTypes {
+                  debug {
+                      signingConfig signingConfigs.fixed
+                  }
+                  release {
+                      signingConfig signingConfigs.fixed
+                      minifyEnabled false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+
+              // 音频要能用 AssetManager.openFd 直接读，必须不压缩。
+              androidResources {
+                  noCompress 'wav', 'm4a'
+              }
+
+              lint {
+                  checkReleaseBuilds false
+                  abortOnError false
+              }
+          }
+          PETTRIO_FILE_END
+          mkdir -p "$(dirname 'app/src/main/AndroidManifest.xml')"
+          cat > 'app/src/main/AndroidManifest.xml' <<'PETTRIO_FILE_END'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+              <application
+                  android:allowBackup="true"
+                  android:icon="@drawable/app_icon"
+                  android:label="桌宠三连"
+                  android:supportsRtl="false"
+                  android:theme="@android:style/Theme.Material.Light.DarkActionBar">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+                  <service
+                      android:name=".PetService"
+                      android:exported="false"
+                      android:foregroundServiceType="specialUse">
+                      <property
+                          android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                          android:value="Floating desktop pet overlay that plays short voice clips when tapped" />
+                  </service>
+              </application>
+          </manifest>
+          PETTRIO_FILE_END
+          mkdir -p "$(dirname 'app/src/main/res/drawable/ic_stat.xml')"
+          cat > 'app/src/main/res/drawable/ic_stat.xml' <<'PETTRIO_FILE_END'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:fillColor="#FFFFFFFF"
+                  android:pathData="M12,2A10,10 0,1 1,12,22A10,10 0,1 1,12,2ZM8.5,9A1.5,1.5 0,1 0,8.5,12A1.5,1.5 0,1 0,8.5,9ZM15.5,9A1.5,1.5 0,1 0,15.5,12A1.5,1.5 0,1 0,15.5,9ZM7.5,14.5L16.5,14.5C15.8,16.6 14.1,18 12,18C9.9,18 8.2,16.6 7.5,14.5Z" />
+          </vector>
+          PETTRIO_FILE_END
+          mkdir -p "$(dirname 'app/src/main/java/local/pettrio/Pets.java')"
+          cat > 'app/src/main/java/local/pettrio/Pets.java' <<'PETTRIO_FILE_END'
+          package local.pettrio;
+
+          import android.content.Context;
+
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          import java.io.ByteArrayOutputStream;
+          import java.io.InputStream;
+          import java.nio.charset.StandardCharsets;
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.HashSet;
+          import java.util.List;
+          import java.util.Set;
+
+          /** 三个角色和它们的台词。数据来自 assets/pets/pets.json（构建时由 tools/prepare_assets.py 生成）。 */
+          public final class Pets {
+
+              public static final String SHAOLAN = "shaolan";
+              public static final String SUN = "sun";
+              public static final String FENGGE = "fengge";
+
+              public static final class Clip {
+                  public final int id;
+                  public final String label;
+                  public final String file;
+                  public final double duration;
+                  /** 开头静音秒数，接话时用来补偿起播时刻。 */
+                  public final double lead;
+                  public final boolean defaultOff;
+
+                  Clip(int id, String label, String file, double duration, double lead, boolean defaultOff) {
+                      this.id = id;
+                      this.label = label;
+                      this.file = file;
+                      this.duration = duration;
+                      this.lead = lead;
+                      this.defaultOff = defaultOff;
+                  }
+              }
+
+              public static final class Pet {
+                  public final String id;
+                  public final String name;
+                  public final String face;
+                  public final List<Clip> clips;
+                  /** 被别人接话时可用的句子 id；空 = 只说不接。 */
+                  public final Set<Integer> companionIds;
+
+                  Pet(String id, String name, String face, List<Clip> clips, Set<Integer> companionIds) {
+                      this.id = id;
+                      this.name = name;
+                      this.face = face;
+                      this.clips = Collections.unmodifiableList(clips);
+                      this.companionIds = Collections.unmodifiableSet(companionIds);
+                  }
+
+                  public Clip clip(int clipId) {
+                      for (Clip c : clips) if (c.id == clipId) return c;
+                      return null;
+                  }
+              }
+
+              private static List<Pet> cache;
+
+              private Pets() {}
+
+              public static synchronized List<Pet> all(Context ctx) {
+                  if (cache != null) return cache;
+                  List<Pet> out = new ArrayList<>();
+                  try (InputStream in = ctx.getAssets().open("pets/pets.json")) {
+                      ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                      byte[] b = new byte[8192];
+                      int n;
+                      while ((n = in.read(b)) > 0) buf.write(b, 0, n);
+                      JSONArray arr = new JSONObject(new String(buf.toByteArray(), StandardCharsets.UTF_8)).getJSONArray("pets");
+                      for (int i = 0; i < arr.length(); i++) {
+                          JSONObject p = arr.getJSONObject(i);
+                          List<Clip> clips = new ArrayList<>();
+                          JSONArray ca = p.getJSONArray("clips");
+                          for (int j = 0; j < ca.length(); j++) {
+                              JSONObject c = ca.getJSONObject(j);
+                              clips.add(new Clip(c.getInt("id"), c.getString("label"), c.getString("file"),
+                                      c.optDouble("duration", 1.0), c.optDouble("lead", 0.0), c.optBoolean("defaultOff", false)));
+                          }
+                          Set<Integer> comp = new HashSet<>();
+                          JSONArray co = p.optJSONArray("companion");
+                          if (co != null) for (int j = 0; j < co.length(); j++) comp.add(co.getInt(j));
+                          out.add(new Pet(p.getString("id"), p.getString("name"), p.getString("face"), clips, comp));
+                      }
+                  } catch (Exception e) {
+                      throw new IllegalStateException("读取 pets.json 失败：" + e, e);
+                  }
+                  cache = Collections.unmodifiableList(out);
+                  return cache;
+              }
+
+              public static Pet byId(Context ctx, String id) {
+                  for (Pet p : all(ctx)) if (p.id.equals(id)) return p;
+                  return null;
+              }
+          }
+          PETTRIO_FILE_END
+          mkdir -p "$(dirname 'app/src/main/java/local/pettrio/Prefs.java')"
+          cat > 'app/src/main/java/local/pettrio/Prefs.java' <<'PETTRIO_FILE_END'
+          package local.pettrio;
+
+          import android.content.Context;
+          import android.content.SharedPreferences;
+
+          import java.util.HashSet;
+          import java.util.Set;
+
+          /** 所有设置都存在这里，桌宠服务和设置页共用。 */
+          public final class Prefs {
+
+              public static final String KEY_CHAIN = "chain";
+              public static final String KEY_SHAKE = "shake";
+              public static final String KEY_VOLUME = "volume";
+              public static final String KEY_SIZE = "size";
+              public static final String PREFIX_VISIBLE = "visible_";
+
+              private final SharedPreferences sp;
+
+              public Prefs(Context ctx) {
+                  sp = ctx.getApplicationContext().getSharedPreferences("pets", Context.MODE_PRIVATE);
+              }
+
+              public SharedPreferences raw() { return sp; }
+
+              // ---- 全局 ----
+              public boolean chain() { return sp.getBoolean(KEY_CHAIN, true); }
+              public void setChain(boolean v) { sp.edit().putBoolean(KEY_CHAIN, v).apply(); }
+
+              public boolean shake() { return sp.getBoolean(KEY_SHAKE, false); }
+              public void setShake(boolean v) { sp.edit().putBoolean(KEY_SHAKE, v).apply(); }
+
+              /** 0–100 */
+              public int volume() { return sp.getInt(KEY_VOLUME, 80); }
+              public void setVolume(int v) { sp.edit().putInt(KEY_VOLUME, v).apply(); }
+
+              /** 头像边长，单位 dp。 */
+              public int sizeDp() { return sp.getInt(KEY_SIZE, 110); }
+              public void setSizeDp(int v) { sp.edit().putInt(KEY_SIZE, v).apply(); }
+
+              // ---- 每个角色 ----
+              public boolean visible(String pet) { return sp.getBoolean(PREFIX_VISIBLE + pet, true); }
+              public void setVisible(String pet, boolean v) { sp.edit().putBoolean(PREFIX_VISIBLE + pet, v).apply(); }
+
+              /** true = 固定播一句；false = 随机一句。 */
+              public boolean fixedMode(String pet) { return sp.getBoolean("fixed_" + pet, false); }
+              public void setFixedMode(String pet, boolean v) { sp.edit().putBoolean("fixed_" + pet, v).apply(); }
+
+              public int pinned(String pet) { return sp.getInt("pinned_" + pet, -1); }
+              public void setPinned(String pet, int clipId) { sp.edit().putInt("pinned_" + pet, clipId).apply(); }
+
+              /** 被勾掉、不进随机轮播的句子。第一次用时按素材里的 defaultOff 给默认值。 */
+              public Set<Integer> excluded(Pets.Pet pet) {
+                  Set<String> raw = sp.getStringSet("excluded_" + pet.id, null);
+                  Set<Integer> out = new HashSet<>();
+                  if (raw == null) {
+                      for (Pets.Clip c : pet.clips) if (c.defaultOff) out.add(c.id);
+                      return out;
+                  }
+                  for (String s : raw) {
+                      try { out.add(Integer.parseInt(s)); } catch (NumberFormatException ignored) { }
+                  }
+                  return out;
+              }
+
+              public void setExcluded(String pet, Set<Integer> ids) {
+                  Set<String> raw = new HashSet<>();
+                  for (Integer i : ids) raw.add(String.valueOf(i));
+                  sp.edit().putStringSet("excluded_" + pet, raw).apply();
+              }
+
+              public void resetExcluded(String pet) { sp.edit().remove("excluded_" + pet).apply(); }
+
+              // ---- 位置（像素，-1 表示还没摆过） ----
+              public int posX(String pet) { return sp.getInt("x_" + pet, -1); }
+              public int posY(String pet) { return sp.getInt("y_" + pet, -1); }
+              public void setPos(String pet, int x, int y) { sp.edit().putInt("x_" + pet, x).putInt("y_" + pet, y).apply(); }
+
+              public void clearPositions(Iterable<Pets.Pet> pets) {
+                  SharedPreferences.Editor e = sp.edit();
+                  for (Pets.Pet p : pets) e.remove("x_" + p.id).remove("y_" + p.id);
+                  e.apply();
+              }
+          }
+          PETTRIO_FILE_END
+          mkdir -p "$(dirname 'app/src/main/java/local/pettrio/PetView.java')"
+          cat > 'app/src/main/java/local/pettrio/PetView.java' <<'PETTRIO_FILE_END'
+          package local.pettrio;
+
+          import android.animation.ValueAnimator;
+          import android.annotation.SuppressLint;
+          import android.content.Context;
+          import android.graphics.Bitmap;
+          import android.graphics.PixelFormat;
+          import android.graphics.drawable.GradientDrawable;
+          import android.text.TextUtils;
+          import android.util.TypedValue;
+          import android.view.Gravity;
+          import android.view.WindowManager;
+          import android.view.animation.LinearInterpolator;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+
+          /** 一个悬浮的人头：上面是头像，下面是说话时冒出来的字幕气泡。 */
+          @SuppressLint("ViewConstructor")
+          final class PetView extends LinearLayout {
+
+              final Pets.Pet pet;
+              final ImageView face;
+              final TextView caption;
+              final WindowManager.LayoutParams lp;
+              final int facePx;
+
+              private ValueAnimator sway;
+              private final Runnable hideCaption;
+
+              PetView(Context ctx, Pets.Pet pet, Bitmap bitmap, int facePx) {
+                  super(ctx);
+                  this.pet = pet;
+                  this.facePx = facePx;
+                  setOrientation(VERTICAL);
+                  setGravity(Gravity.CENTER_HORIZONTAL);
+                  // 说话时头会往上跳几像素，顶上留点空，不然会被窗口边裁掉。
+                  int pad = dp(4);
+                  setPadding(0, pad, 0, 0);
+                  setClipChildren(false);
+                  setClipToPadding(false);
+
+                  face = new ImageView(ctx);
+                  face.setImageBitmap(bitmap);
+                  face.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                  face.setContentDescription(pet.name);
+                  addView(face, new LayoutParams(facePx, facePx));
+
+                  caption = new TextView(ctx);
+                  caption.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+                  caption.setTextColor(0xFF1F1F1F);
+                  caption.setGravity(Gravity.CENTER);
+                  caption.setMaxLines(3);
+                  caption.setEllipsize(TextUtils.TruncateAt.END);
+                  caption.setPadding(dp(6), dp(3), dp(6), dp(3));
+                  GradientDrawable bubble = new GradientDrawable();
+                  bubble.setColor(0xF2FFFFFF);
+                  bubble.setCornerRadius(dp(10));
+                  bubble.setStroke(Math.max(1, dp(1) / 2), 0x33000000);
+                  caption.setBackground(bubble);
+                  caption.setVisibility(GONE);
+                  hideCaption = () -> caption.setVisibility(GONE);
+                  LayoutParams clp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+                  clp.topMargin = dp(2);
+                  addView(caption, clp);
+
+                  lp = new WindowManager.LayoutParams(
+                          facePx,
+                          WindowManager.LayoutParams.WRAP_CONTENT,
+                          WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                                  | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                          PixelFormat.TRANSLUCENT);
+                  lp.gravity = Gravity.TOP | Gravity.START;
+              }
+
+              /** 字幕 + 顶部留白最多占多高，摆位置时要给它留出来。 */
+              int captionReservePx() { return dp(48); }
+
+              void showCaption(String text, long millis) {
+                  removeCallbacks(hideCaption);
+                  caption.setText(text);
+                  caption.setVisibility(VISIBLE);
+                  postDelayed(hideCaption, millis);
+              }
+
+              /** 说话时左右轻摇、上下轻跳，和 macOS 原版同一个节奏。 */
+              void setSpeaking(boolean speaking) {
+                  if (sway != null) {
+                      sway.cancel();
+                      sway = null;
+                  }
+                  face.setRotation(0f);
+                  face.setTranslationY(0f);
+                  if (!speaking) return;
+                  final float jump = dp(3);
+                  sway = ValueAnimator.ofFloat(0f, 1f);
+                  sway.setDuration(1000);
+                  sway.setRepeatCount(ValueAnimator.INFINITE);
+                  sway.setInterpolator(new LinearInterpolator());
+                  final long start = System.nanoTime();
+                  sway.addUpdateListener(a -> {
+                      // 原版每 1/30 秒相位 +0.38，相当于每秒 11.4 弧度。
+                      double phase = (System.nanoTime() - start) / 1e9 * 11.4;
+                      face.setRotation((float) Math.toDegrees(Math.sin(phase) * 0.055));
+                      face.setTranslationY((float) (-Math.abs(Math.sin(phase)) * jump));
+                  });
+                  sway.start();
+              }
+
+              void release() {
+                  setSpeaking(false);
+                  removeCallbacks(hideCaption);
+              }
+
+              private int dp(float v) {
+                  return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()));
+              }
+          }
+          PETTRIO_FILE_END
+          mkdir -p "$(dirname 'app/src/main/java/local/pettrio/PetService.java')"
+          cat > 'app/src/main/java/local/pettrio/PetService.java' <<'PETTRIO_FILE_END'
+          package local.pettrio;
+
+          import android.annotation.SuppressLint;
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.app.Service;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.ServiceInfo;
+          import android.content.res.AssetFileDescriptor;
+          import android.content.res.Configuration;
+          import android.graphics.Bitmap;
+          import android.graphics.BitmapFactory;
+          import android.graphics.Point;
+          import android.graphics.Rect;
+          import android.graphics.drawable.Icon;
+          import android.hardware.Sensor;
+          import android.hardware.SensorEvent;
+          import android.hardware.SensorEventListener;
+          import android.hardware.SensorManager;
+          import android.media.AudioAttributes;
+          import android.media.MediaPlayer;
+          import android.os.Build;
+          import android.os.Handler;
+          import android.os.IBinder;
+          import android.os.Looper;
+          import android.os.SystemClock;
+          import android.provider.Settings;
+          import android.util.DisplayMetrics;
+          import android.util.TypedValue;
+          import android.view.HapticFeedbackConstants;
+          import android.view.MotionEvent;
+          import android.view.ViewConfiguration;
+          import android.view.WindowManager;
+          import android.widget.Toast;
+
+          import java.io.IOException;
+          import java.io.InputStream;
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.HashMap;
+          import java.util.LinkedHashMap;
+          import java.util.List;
+          import java.util.Map;
+          import java.util.Set;
+
+          /**
+           * 常驻前台服务：管三个悬浮人头、放音频、跑接话链、摇一摇。
+           *
+           * 接话链和 macOS 原版一致：
+           *   薄肌 ──> 太对了 ──> 峰哥 ──> 太对了
+           * 点薄肌：四句一串。点峰哥：太对了接一句就停。点太对了：没人接。
+           * 靠 hop（第几跳）封顶防止无限接，靠 root（谁起的头）决定峰哥接不接。
+           */
+          public class PetService extends Service
+                  implements SharedPreferences.OnSharedPreferenceChangeListener, SensorEventListener {
+
+              public static final String ACTION_START = "local.pettrio.START";
+              public static final String ACTION_TOGGLE = "local.pettrio.TOGGLE";
+              public static final String ACTION_QUIT = "local.pettrio.QUIT";
+              public static final String ACTION_RESET = "local.pettrio.RESET";
+
+              private static final String CHANNEL = "pets";
+              private static final int NOTIF_ID = 1;
+              /** 默认提前 0.3 秒叠进来；第二跳（太对了 → 峰哥）压到 0.2 秒，四步连起来才不拖。 */
+              private static final double OVERLAP = 0.3;
+              private static final double OVERLAP_HOP1 = 0.2;
+              private static final int MAX_HOP = 3;
+
+              static volatile boolean running;
+              static volatile boolean hidden;
+
+              private final Handler main = new Handler(Looper.getMainLooper());
+              private WindowManager wm;
+              private Prefs prefs;
+              private List<Pets.Pet> pets;
+
+              private final Map<String, PetView> views = new LinkedHashMap<>();
+              private final Map<String, Bitmap> faces = new HashMap<>();
+              private final Map<String, MediaPlayer> players = new HashMap<>();
+              private final Map<String, Runnable> pendingReplies = new HashMap<>();
+              private final Map<String, List<Integer>> bags = new HashMap<>();
+              private final Map<String, List<Integer>> companionBags = new HashMap<>();
+              private final Map<String, Integer> lastSaid = new HashMap<>();
+              /** 每个角色当前这句预计在什么时候说完（uptimeMillis）。 */
+              private final Map<String, Long> speakEndsAt = new HashMap<>();
+              /** 接话时允许压掉自己上一句的最后这么多毫秒（多半是尾部静音），不然安卓回调稍慢就会把接话吞掉。 */
+              private static final long BUSY_TOLERANCE_MS = 120;
+
+              private SensorManager sensors;
+              private boolean sensorOn;
+              private long lastShake;
+              private boolean hintShown;
+
+              // ------------------------------------------------------------------ 生命周期
+
+              @Override
+              public void onCreate() {
+                  super.onCreate();
+                  wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+                  sensors = (SensorManager) getSystemService(SENSOR_SERVICE);
+                  prefs = new Prefs(this);
+                  pets = Pets.all(this);
+                  prefs.raw().registerOnSharedPreferenceChangeListener(this);
+                  createChannel();
+                  running = true;
+              }
+
+              @Override
+              public int onStartCommand(Intent intent, int flags, int startId) {
+                  goForeground();
+                  String action = intent != null && intent.getAction() != null ? intent.getAction() : ACTION_START;
+                  switch (action) {
+                      case ACTION_QUIT:
+                          quit();
+                          return START_NOT_STICKY;
+                      case ACTION_TOGGLE:
+                          hidden = !hidden;
+                          if (hidden) removeAll(); else showAll();
+                          break;
+                      case ACTION_RESET:
+                          prefs.clearPositions(pets);
+                          if (!hidden) { removeAll(); showAll(); }
+                          break;
+                      case ACTION_START:
+                      default:
+                          hidden = false;
+                          showAll();
+                          break;
+                  }
+                  goForeground();
+                  return START_STICKY;
+              }
+
+              @Override
+              public void onDestroy() {
+                  prefs.raw().unregisterOnSharedPreferenceChangeListener(this);
+                  removeAll();
+                  main.removeCallbacksAndMessages(null);
+                  running = false;
+                  super.onDestroy();
+              }
+
+              @Override
+              public IBinder onBind(Intent intent) { return null; }
+
+              private void quit() {
+                  removeAll();
+                  running = false;
+                  hidden = false;
+                  stopForeground(STOP_FOREGROUND_REMOVE);
+                  stopSelf();
+              }
+
+              @Override
+              public void onConfigurationChanged(Configuration newConfig) {
+                  super.onConfigurationChanged(newConfig);
+                  // 横竖屏切换后，把跑出屏幕的人头拉回来。
+                  for (PetView v : views.values()) {
+                      clampAndApply(v);
+                  }
+              }
+
+              // ------------------------------------------------------------------ 通知栏
+
+              private void createChannel() {
+                  NotificationChannel ch = new NotificationChannel(CHANNEL, "桌宠常驻", NotificationManager.IMPORTANCE_MIN);
+                  ch.setDescription("桌宠在屏幕上时显示，可以从这里隐藏或退出");
+                  ch.setShowBadge(false);
+                  getSystemService(NotificationManager.class).createNotificationChannel(ch);
+              }
+
+              private void goForeground() {
+                  Notification n = buildNotification();
+                  if (Build.VERSION.SDK_INT >= 34) {
+                      startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                  } else {
+                      startForeground(NOTIF_ID, n);
+                  }
+              }
+
+              private Notification buildNotification() {
+                  PendingIntent open = PendingIntent.getActivity(this, 0,
+                          new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                          PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+                  Icon icon = Icon.createWithResource(this, R.drawable.ic_stat);
+                  return new Notification.Builder(this, CHANNEL)
+                          .setSmallIcon(R.drawable.ic_stat)
+                          .setContentTitle(hidden ? "桌宠已隐藏" : "桌宠在屏幕上")
+                          .setContentText("点这里打开设置 · 长按人头也能打开")
+                          .setContentIntent(open)
+                          .setOngoing(true)
+                          .setShowWhen(false)
+                          .addAction(new Notification.Action.Builder(icon, hidden ? "显示" : "隐藏", servicePI(ACTION_TOGGLE, 1)).build())
+                          .addAction(new Notification.Action.Builder(icon, "退出", servicePI(ACTION_QUIT, 2)).build())
+                          .build();
+              }
+
+              private PendingIntent servicePI(String action, int req) {
+                  Intent i = new Intent(this, PetService.class).setAction(action);
+                  return PendingIntent.getService(this, req, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+              }
+
+              // ------------------------------------------------------------------ 悬浮窗
+
+              private void showAll() {
+                  if (!Settings.canDrawOverlays(this)) {
+                      Toast.makeText(this, "还没给「显示在其他应用上层」权限", Toast.LENGTH_LONG).show();
+                      return;
+                  }
+                  int facePx = dp(prefs.sizeDp());
+                  for (int i = 0; i < pets.size(); i++) {
+                      Pets.Pet p = pets.get(i);
+                      if (!prefs.visible(p.id) || views.containsKey(p.id)) continue;
+                      addPet(p, i, facePx);
+                  }
+                  if (!hintShown && !views.isEmpty()) {
+                      hintShown = true;
+                      for (PetView v : views.values()) v.showCaption("点我说一句 · 长按设置", 4000);
+                  }
+                  updateSensor();
+              }
+
+              private void addPet(Pets.Pet p, int slot, int facePx) {
+                  PetView v = new PetView(this, p, face(p), facePx);
+                  Point s = screen();
+                  int x = prefs.posX(p.id);
+                  int y = prefs.posY(p.id);
+                  if (x < 0 || y < 0) {
+                      // 默认摆在右下角，三个竖着排开，不叠在一起。
+                      int cell = facePx + v.captionReservePx();
+                      x = s.x - facePx - dp(12);
+                      y = s.y - dp(120) - (pets.size() - slot) * cell;
+                  }
+                  v.lp.x = x;
+                  v.lp.y = y;
+                  clamp(v);
+                  attachTouch(v);
+                  try {
+                      wm.addView(v, v.lp);
+                      views.put(p.id, v);
+                  } catch (RuntimeException e) {
+                      Toast.makeText(this, "悬浮窗添加失败：" + e.getMessage(), Toast.LENGTH_LONG).show();
+                  }
+              }
+
+              private void removeAll() {
+                  for (String id : new ArrayList<>(views.keySet())) removePet(id);
+                  for (Runnable r : pendingReplies.values()) main.removeCallbacks(r);
+                  pendingReplies.clear();
+                  updateSensor();
+              }
+
+              private void removePet(String id) {
+                  stopPlayer(id);
+                  Runnable r = pendingReplies.remove(id);
+                  if (r != null) main.removeCallbacks(r);
+                  PetView v = views.remove(id);
+                  if (v == null) return;
+                  v.release();
+                  try { wm.removeView(v); } catch (RuntimeException ignored) { }
+              }
+
+              private Bitmap face(Pets.Pet p) {
+                  Bitmap b = faces.get(p.id);
+                  if (b != null) return b;
+                  try (InputStream in = getAssets().open(p.face)) {
+                      BitmapFactory.Options o = new BitmapFactory.Options();
+                      o.inJustDecodeBounds = true;
+                      BitmapFactory.decodeStream(in, null, o);
+                      int sample = 1;
+                      // 原图 800–1300px，缩到 400px 以上最小的 2 的幂次，省内存。
+                      while (Math.min(o.outWidth, o.outHeight) / (sample * 2) >= 400) sample *= 2;
+                      try (InputStream in2 = getAssets().open(p.face)) {
+                          BitmapFactory.Options o2 = new BitmapFactory.Options();
+                          o2.inSampleSize = sample;
+                          b = BitmapFactory.decodeStream(in2, null, o2);
+                      }
+                  } catch (IOException e) {
+                      b = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888);
+                  }
+                  faces.put(p.id, b);
+                  return b;
+              }
+
+              @SuppressLint("ClickableViewAccessibility")
+              private void attachTouch(final PetView v) {
+                  final int slop = ViewConfiguration.get(this).getScaledTouchSlop();
+                  final long longPressMs = ViewConfiguration.getLongPressTimeout();
+                  final float[] down = new float[2];
+                  final int[] start = new int[2];
+                  final boolean[] state = new boolean[2]; // [0] 正在拖动  [1] 已触发长按
+                  final Runnable longPress = () -> {
+                      state[1] = true;
+                      v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                      openSettings();
+                  };
+                  v.setOnTouchListener((view, e) -> {
+                      switch (e.getActionMasked()) {
+                          case MotionEvent.ACTION_DOWN:
+                              down[0] = e.getRawX();
+                              down[1] = e.getRawY();
+                              start[0] = v.lp.x;
+                              start[1] = v.lp.y;
+                              state[0] = false;
+                              state[1] = false;
+                              main.postDelayed(longPress, longPressMs);
+                              return true;
+                          case MotionEvent.ACTION_MOVE: {
+                              float dx = e.getRawX() - down[0];
+                              float dy = e.getRawY() - down[1];
+                              if (!state[0] && !state[1] && Math.hypot(dx, dy) > slop) {
+                                  state[0] = true;
+                                  main.removeCallbacks(longPress);
+                              }
+                              if (state[0]) {
+                                  v.lp.x = start[0] + Math.round(dx);
+                                  v.lp.y = start[1] + Math.round(dy);
+                                  clampAndApply(v);
+                              }
+                              return true;
+                          }
+                          case MotionEvent.ACTION_UP:
+                              main.removeCallbacks(longPress);
+                              if (state[0]) {
+                                  prefs.setPos(v.pet.id, v.lp.x, v.lp.y);
+                              } else if (!state[1]) {
+                                  onTap(v.pet);
+                              }
+                              return true;
+                          case MotionEvent.ACTION_CANCEL:
+                              main.removeCallbacks(longPress);
+                              if (state[0]) prefs.setPos(v.pet.id, v.lp.x, v.lp.y);
+                              return true;
+                          default:
+                              return false;
+                      }
+                  });
+              }
+
+              private void openSettings() {
+                  Intent i = new Intent(this, MainActivity.class)
+                          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                  try {
+                      startActivity(i);
+                  } catch (RuntimeException e) {
+                      Toast.makeText(this, "打不开设置，请从通知栏或桌面图标进入", Toast.LENGTH_SHORT).show();
+                  }
+              }
+
+              private void clamp(PetView v) {
+                  Point s = screen();
+                  int maxX = Math.max(0, s.x - v.facePx);
+                  int maxY = Math.max(0, s.y - v.facePx - v.captionReservePx());
+                  v.lp.x = Math.max(0, Math.min(v.lp.x, maxX));
+                  v.lp.y = Math.max(0, Math.min(v.lp.y, maxY));
+              }
+
+              private void clampAndApply(PetView v) {
+                  clamp(v);
+                  try { wm.updateViewLayout(v, v.lp); } catch (RuntimeException ignored) { }
+              }
+
+              private Point screen() {
+                  if (Build.VERSION.SDK_INT >= 30) {
+                      Rect b = wm.getCurrentWindowMetrics().getBounds();
+                      return new Point(b.width(), b.height());
+                  }
+                  DisplayMetrics dm = new DisplayMetrics();
+                  //noinspection deprecation
+                  wm.getDefaultDisplay().getRealMetrics(dm);
+                  return new Point(dm.widthPixels, dm.heightPixels);
+              }
+
+              // ------------------------------------------------------------------ 说话
+
+              private void onTap(Pets.Pet pet) {
+                  Pets.Clip clip = null;
+                  if (prefs.fixedMode(pet.id)) clip = pet.clip(prefs.pinned(pet.id));
+                  if (clip == null) clip = nextRandom(pet);
+                  if (clip == null) {
+                      PetView v = views.get(pet.id);
+                      if (v != null) v.showCaption("轮播里一句都没勾，长按去设置", 3000);
+                      return;
+                  }
+                  speak(pet, clip, 0, pet.id);
+              }
+
+              /** 播一句。hop：这是接话链的第几跳（用户自己点的是 0）；root：这条链是谁起的头。 */
+              private void speak(Pets.Pet pet, Pets.Clip clip, int hop, String root) {
+                  stopPlayer(pet.id);
+                  MediaPlayer mp = new MediaPlayer();
+                  try (AssetFileDescriptor afd = getAssets().openFd(clip.file)) {
+                      mp.setAudioAttributes(new AudioAttributes.Builder()
+                              .setUsage(AudioAttributes.USAGE_MEDIA)
+                              .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                              .build());
+                      mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+                      mp.prepare();
+                  } catch (IOException | RuntimeException e) {
+                      mp.release();
+                      PetView v = views.get(pet.id);
+                      if (v != null) v.showCaption("播放失败", 3000);
+                      return;
+                  }
+                  float vol = prefs.volume() / 100f;
+                  mp.setVolume(vol, vol);
+                  mp.setOnCompletionListener(done -> {
+                      if (players.get(pet.id) == done) {
+                          players.remove(pet.id);
+                          PetView v = views.get(pet.id);
+                          if (v != null) v.setSpeaking(false);
+                      }
+                      done.release();
+                  });
+                  players.put(pet.id, mp);
+                  mp.start();
+                  lastSaid.put(pet.id, clip.id);
+                  speakEndsAt.put(pet.id, SystemClock.uptimeMillis() + Math.round(clip.duration * 1000));
+
+                  PetView v = views.get(pet.id);
+                  if (v != null) {
+                      v.setSpeaking(true);
+                      v.showCaption(clip.label, Math.round((clip.duration + 0.5) * 1000));
+                  }
+                  if (prefs.chain()) announce(pet, clip, hop, root);
+              }
+
+              private void stopPlayer(String petId) {
+                  MediaPlayer old = players.remove(petId);
+                  if (old != null) {
+                      try { old.stop(); } catch (RuntimeException ignored) { }
+                      old.release();
+                  }
+                  PetView v = views.get(petId);
+                  if (v != null) v.setSpeaking(false);
+              }
+
+              private boolean isSpeaking(String petId) {
+                  if (!players.containsKey(petId)) return false;
+                  Long end = speakEndsAt.get(petId);
+                  return end == null || SystemClock.uptimeMillis() < end - BUSY_TOLERANCE_MS;
+              }
+
+              // ------------------------------------------------------------------ 接话链
+
+              /** 谁听谁：太对了接薄肌和峰哥；峰哥只接「薄肌起头」的链里太对了的话；薄肌只说不接。 */
+              private static boolean listens(String me, String from, String root) {
+                  switch (me) {
+                      case Pets.SUN:
+                          return from.equals(Pets.SHAOLAN) || from.equals(Pets.FENGGE);
+                      case Pets.FENGGE:
+                          return from.equals(Pets.SUN) && root.equals(Pets.SHAOLAN);
+                      default:
+                          return false;
+                  }
+              }
+
+              private void announce(Pets.Pet speaker, Pets.Clip clip, int hop, String root) {
+                  if (hop >= MAX_HOP) return;
+                  for (Pets.Pet other : pets) {
+                      if (other == speaker || !views.containsKey(other.id)) continue;
+                      if (!listens(other.id, speaker.id, root)) continue;
+                      scheduleReply(other, clip.duration, hop, root);
+                  }
+              }
+
+              private void scheduleReply(Pets.Pet me, double heardDuration, int hop, String root) {
+                  // 被连点时只留最后一次的接话，不然几句叠在一起。
+                  Runnable old = pendingReplies.remove(me.id);
+                  if (old != null) main.removeCallbacks(old);
+                  final Pets.Clip reply = nextCompanion(me);
+                  if (reply == null) return;
+                  // 目标：对方那句还剩 overlap 秒时，接话的第一个字正好出来。每句开头静音不同，按它自己的补。
+                  double overlap = hop == 1 ? OVERLAP_HOP1 : OVERLAP;
+                  long delay = Math.round(Math.max(0.02, heardDuration - overlap - reply.lead) * 1000);
+                  Runnable r = new Runnable() {
+                      @Override
+                      public void run() {
+                          if (pendingReplies.get(me.id) == this) pendingReplies.remove(me.id);
+                          if (!prefs.chain() || !views.containsKey(me.id)) return;
+                          // 自己正说着（刚被手点了）就不叠上去，这一捧算了。
+                          if (isSpeaking(me.id)) return;
+                          speak(me, reply, hop + 1, root);
+                      }
+                  };
+                  pendingReplies.put(me.id, r);
+                  main.postDelayed(r, delay);
+              }
+
+              // ------------------------------------------------------------------ 抽句子
+
+              /** 随机一句：一轮播完前不重复，换轮时也不和上一句撞。 */
+              private Pets.Clip nextRandom(Pets.Pet pet) {
+                  Set<Integer> excluded = prefs.excluded(pet);
+                  List<Integer> pool = new ArrayList<>();
+                  for (Pets.Clip c : pet.clips) if (!excluded.contains(c.id)) pool.add(c.id);
+                  return draw(pet, pool, bags);
+              }
+
+              private Pets.Clip nextCompanion(Pets.Pet pet) {
+                  if (pet.companionIds.isEmpty()) return null;
+                  Set<Integer> excluded = prefs.excluded(pet);
+                  List<Integer> pool = new ArrayList<>();
+                  for (Pets.Clip c : pet.clips) {
+                      if (pet.companionIds.contains(c.id) && !excluded.contains(c.id)) pool.add(c.id);
+                  }
+                  if (pool.isEmpty()) {
+                      // 捧哏句全被勾掉了，退回到完整的捧哏句池，联动不至于哑掉。
+                      for (Pets.Clip c : pet.clips) if (pet.companionIds.contains(c.id)) pool.add(c.id);
+                  }
+                  return draw(pet, pool, companionBags);
+              }
+
+              private Pets.Clip draw(Pets.Pet pet, List<Integer> pool, Map<String, List<Integer>> store) {
+                  if (pool.isEmpty()) return null;
+                  List<Integer> bag = store.get(pet.id);
+                  if (bag == null) {
+                      bag = new ArrayList<>();
+                      store.put(pet.id, bag);
+                  }
+                  bag.retainAll(pool);
+                  if (bag.isEmpty()) {
+                      bag.addAll(pool);
+                      Collections.shuffle(bag);
+                      Integer last = lastSaid.get(pet.id);
+                      if (bag.size() > 1 && last != null && bag.get(bag.size() - 1).equals(last)) {
+                          Collections.swap(bag, 0, bag.size() - 1);
+                      }
+                  }
+                  return pet.clip(bag.remove(bag.size() - 1));
+              }
+
+              // ------------------------------------------------------------------ 摇一摇
+
+              private void updateSensor() {
+                  boolean want = prefs.shake() && !hidden && !views.isEmpty();
+                  if (want == sensorOn) return;
+                  if (want) {
+                      Sensor acc = sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+                      if (acc == null) return;
+                      sensors.registerListener(this, acc, SensorManager.SENSOR_DELAY_UI);
+                      sensorOn = true;
+                  } else {
+                      sensors.unregisterListener(this);
+                      sensorOn = false;
+                  }
+              }
+
+              @Override
+              public void onSensorChanged(SensorEvent e) {
+                  float x = e.values[0], y = e.values[1], z = e.values[2];
+                  double g = Math.sqrt(x * x + y * y + z * z) / SensorManager.GRAVITY_EARTH;
+                  long now = SystemClock.elapsedRealtime();
+                  if (g < 2.3 || now - lastShake < 1500) return;
+                  lastShake = now;
+                  // 和 Mac 原版一样，摇一摇是「太对了」开口；他被隐藏了就让第一个在场的说。
+                  Pets.Pet who = views.containsKey(Pets.SUN) ? Pets.byId(this, Pets.SUN) : null;
+                  if (who == null && !views.isEmpty()) who = views.values().iterator().next().pet;
+                  if (who != null) onTap(who);
+              }
+
+              @Override
+              public void onAccuracyChanged(Sensor sensor, int accuracy) { }
+
+              // ------------------------------------------------------------------ 设置变化
+
+              @Override
+              public void onSharedPreferenceChanged(SharedPreferences sp, String key) {
+                  if (key == null) return;
+                  if (key.equals(Prefs.KEY_SIZE) || key.startsWith(Prefs.PREFIX_VISIBLE)) {
+                      if (!hidden) {
+                          removeAll();
+                          showAll();
+                      }
+                  } else if (key.equals(Prefs.KEY_SHAKE)) {
+                      updateSensor();
+                  } else if (key.equals(Prefs.KEY_CHAIN) && !prefs.chain()) {
+                      for (Runnable r : pendingReplies.values()) main.removeCallbacks(r);
+                      pendingReplies.clear();
+                  }
+              }
+
+              private int dp(float v) {
+                  return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()));
+              }
+
+              /** 给设置页用：启动 / 发指令。 */
+              static void send(Context ctx, String action) {
+                  Intent i = new Intent(ctx, PetService.class).setAction(action);
+                  if (ACTION_START.equals(action) || !running) {
+                      ctx.startForegroundService(i);
+                  } else {
+                      ctx.startService(i);
+                  }
+              }
+          }
+          PETTRIO_FILE_END
+          mkdir -p "$(dirname 'app/src/main/java/local/pettrio/MainActivity.java')"
+          cat > 'app/src/main/java/local/pettrio/MainActivity.java' <<'PETTRIO_FILE_END'
+          package local.pettrio;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.content.res.AssetFileDescriptor;
+          import android.graphics.Typeface;
+          import android.media.AudioAttributes;
+          import android.media.MediaPlayer;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.provider.Settings;
+          import android.util.TypedValue;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.AdapterView;
+          import android.widget.ArrayAdapter;
+          import android.widget.Button;
+          import android.widget.CheckBox;
+          import android.widget.LinearLayout;
+          import android.widget.RadioButton;
+          import android.widget.RadioGroup;
+          import android.widget.ScrollView;
+          import android.widget.SeekBar;
+          import android.widget.Spinner;
+          import android.widget.Switch;
+          import android.widget.TextView;
+
+          import java.util.ArrayList;
+          import java.util.List;
+          import java.util.Set;
+
+          /** 设置页：权限引导、召唤 / 收起、全局开关、每个角色的播放方式和轮播内容。 */
+          public class MainActivity extends Activity {
+
+              private static final int REQ_NOTIF = 7;
+
+              private Prefs prefs;
+              private List<Pets.Pet> pets;
+              private TextView status;
+              private Button btnOverlay, btnNotif, btnStart, btnHide, btnReset;
+              private MediaPlayer preview;
+              private final Handler main = new Handler(Looper.getMainLooper());
+
+              @Override
+              protected void onCreate(Bundle state) {
+                  super.onCreate(state);
+                  prefs = new Prefs(this);
+                  pets = Pets.all(this);
+                  setTitle("桌宠三连");
+
+                  LinearLayout root = column();
+                  root.setPadding(dp(16), dp(12), dp(16), dp(32));
+
+                  status = text("", 14);
+                  root.addView(status);
+
+                  btnOverlay = button("① 授予「显示在其他应用上层」权限", v -> startActivity(
+                          new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()))));
+                  root.addView(btnOverlay);
+
+                  btnNotif = button("② 允许通知（用来隐藏 / 退出桌宠）", v -> {
+                      if (Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIF);
+                  });
+                  root.addView(btnNotif);
+
+                  btnStart = button("", v -> {
+                      if (PetService.running) PetService.send(this, PetService.ACTION_QUIT);
+                      else PetService.send(this, PetService.ACTION_START);
+                      main.postDelayed(this::refresh, 300);
+                  });
+                  root.addView(btnStart);
+
+                  LinearLayout row = row();
+                  btnHide = button("", v -> {
+                      PetService.send(this, PetService.ACTION_TOGGLE);
+                      main.postDelayed(this::refresh, 300);
+                  });
+                  btnReset = button("全部移回右下角", v -> PetService.send(this, PetService.ACTION_RESET));
+                  row.addView(btnHide, weighted());
+                  row.addView(btnReset, weighted());
+                  root.addView(row);
+
+                  // ---------------- 全局
+                  root.addView(header("全局"));
+                  root.addView(toggle("捧哏联动：薄肌 → 太对了 → 峰哥 → 太对了", prefs.chain(), prefs::setChain));
+                  root.addView(hint("点薄肌四句一串；点峰哥只有太对了接一句；点太对了没人接。被隐藏的角色不参与。"));
+                  root.addView(toggle("摇一摇手机，太对了说一句", prefs.shake(), prefs::setShake));
+                  root.addView(hint("走路时可能误触发，默认关。"));
+
+                  final TextView volLabel = text("音量：" + prefs.volume() + "%", 15);
+                  root.addView(volLabel);
+                  root.addView(seek(0, 100, prefs.volume(), (val, done) -> {
+                      volLabel.setText("音量：" + val + "%");
+                      if (done) prefs.setVolume(val);
+                  }));
+
+                  final TextView sizeLabel = text("头像大小：" + prefs.sizeDp() + "dp", 15);
+                  root.addView(sizeLabel);
+                  root.addView(seek(60, 200, prefs.sizeDp(), (val, done) -> {
+                      sizeLabel.setText("头像大小：" + val + "dp");
+                      if (done) prefs.setSizeDp(val);
+                  }));
+
+                  // ---------------- 每个角色
+                  for (Pets.Pet p : pets) addPetSection(root, p);
+
+                  // ---------------- 声明
+                  root.addView(header("素材与来源"));
+                  root.addView(hint("角色、原声和头像来自 Ganzhe2028 的 SunPet、ShaolanPet、FengGe-Desktop-Pet 三个开源项目，"
+                          + "音频和头像版权归原权利人，不在 MIT 许可范围内，仅供学习交流和玩梗，请勿商用。"
+                          + "安卓版只做了移植，交互和接话设计沿用原版。"));
+
+                  ScrollView sv = new ScrollView(this);
+                  sv.addView(root);
+                  setContentView(sv);
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  refresh();
+              }
+
+              @Override
+              protected void onPause() {
+                  super.onPause();
+                  stopPreview();
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                  refresh();
+              }
+
+              private void refresh() {
+                  boolean overlay = Settings.canDrawOverlays(this);
+                  boolean notif = Build.VERSION.SDK_INT < 33
+                          || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+                  btnOverlay.setVisibility(overlay ? View.GONE : View.VISIBLE);
+                  btnNotif.setVisibility(notif ? View.GONE : View.VISIBLE);
+                  btnStart.setEnabled(overlay || PetService.running);
+                  btnStart.setText(PetService.running ? "收起桌宠（退出）" : "召唤桌宠");
+                  btnHide.setEnabled(PetService.running);
+                  btnReset.setEnabled(PetService.running);
+                  btnHide.setText(PetService.hidden ? "显示" : "暂时隐藏");
+                  String s;
+                  if (!overlay) s = "先给悬浮窗权限，桌宠才能浮在其他应用上面。";
+                  else if (!PetService.running) s = "权限齐了，点「召唤桌宠」。";
+                  else s = "桌宠运行中。点人头说话，拖动换位置，长按回到这里。";
+                  status.setText(s);
+              }
+
+              // ------------------------------------------------------------------ 角色设置
+
+              private void addPetSection(LinearLayout root, Pets.Pet pet) {
+                  root.addView(header(pet.name + "（" + pet.clips.size() + " 句）"));
+                  root.addView(toggle("显示在屏幕上", prefs.visible(pet.id), v -> prefs.setVisible(pet.id, v)));
+
+                  // 播放方式
+                  RadioGroup mode = new RadioGroup(this);
+                  mode.setOrientation(RadioGroup.HORIZONTAL);
+                  RadioButton rRandom = new RadioButton(this);
+                  rRandom.setText("随机一句");
+                  rRandom.setId(View.generateViewId());
+                  RadioButton rFixed = new RadioButton(this);
+                  rFixed.setText("固定播一句");
+                  rFixed.setId(View.generateViewId());
+                  mode.addView(rRandom);
+                  mode.addView(rFixed);
+                  mode.check(prefs.fixedMode(pet.id) ? rFixed.getId() : rRandom.getId());
+                  root.addView(mode);
+
+                  final Spinner pin = new Spinner(this);
+                  List<String> labels = new ArrayList<>();
+                  for (Pets.Clip c : pet.clips) labels.add(String.format("%02d  %s", c.id, c.label));
+                  ArrayAdapter<String> ad = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, labels);
+                  ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                  pin.setAdapter(ad);
+                  int pinnedIdx = 0;
+                  for (int i = 0; i < pet.clips.size(); i++) if (pet.clips.get(i).id == prefs.pinned(pet.id)) pinnedIdx = i;
+                  pin.setSelection(pinnedIdx, false);
+                  if (prefs.pinned(pet.id) < 0) prefs.setPinned(pet.id, pet.clips.get(0).id);
+                  pin.setEnabled(prefs.fixedMode(pet.id));
+                  pin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                      @Override
+                      public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                          prefs.setPinned(pet.id, pet.clips.get(position).id);
+                      }
+
+                      @Override
+                      public void onNothingSelected(AdapterView<?> parent) { }
+                  });
+                  root.addView(pin);
+                  mode.setOnCheckedChangeListener((g, checked) -> {
+                      boolean fixed = checked == rFixed.getId();
+                      prefs.setFixedMode(pet.id, fixed);
+                      pin.setEnabled(fixed);
+                  });
+
+                  // 轮播内容（折叠）
+                  final LinearLayout list = column();
+                  list.setVisibility(View.GONE);
+                  final Button expand = button("", null);
+                  final Runnable updateExpand = () -> {
+                      int on = pet.clips.size() - prefs.excluded(pet).size();
+                      expand.setText("轮播内容：已选 " + on + " / " + pet.clips.size()
+                              + (list.getVisibility() == View.VISIBLE ? "  ▴" : "  ▾"));
+                  };
+                  expand.setOnClickListener(v -> {
+                      list.setVisibility(list.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+                      updateExpand.run();
+                  });
+                  updateExpand.run();
+                  root.addView(expand);
+
+                  final List<CheckBox> boxes = new ArrayList<>();
+                  Set<Integer> excluded = prefs.excluded(pet);
+                  for (Pets.Clip c : pet.clips) {
+                      LinearLayout r = row();
+                      r.setGravity(Gravity.CENTER_VERTICAL);
+                      CheckBox cb = new CheckBox(this);
+                      cb.setText(String.format("%02d  %s", c.id, c.label));
+                      cb.setChecked(!excluded.contains(c.id));
+                      cb.setOnCheckedChangeListener((b, on) -> {
+                          Set<Integer> ex = prefs.excluded(pet);
+                          if (on) ex.remove(c.id); else ex.add(c.id);
+                          prefs.setExcluded(pet.id, ex);
+                          updateExpand.run();
+                      });
+                      boxes.add(cb);
+                      r.addView(cb, weighted());
+                      Button play = button("▶", v -> playPreview(c));
+                      play.setMinWidth(dp(48));
+                      play.setMinimumWidth(dp(48));
+                      r.addView(play, new LinearLayout.LayoutParams(dp(56), ViewGroup.LayoutParams.WRAP_CONTENT));
+                      list.addView(r);
+                  }
+                  LinearLayout tools = row();
+                  tools.addView(button("全选", v -> {
+                      prefs.setExcluded(pet.id, new java.util.HashSet<>());
+                      for (CheckBox b : boxes) b.setChecked(true);
+                      updateExpand.run();
+                  }), weighted());
+                  tools.addView(button("恢复默认", v -> {
+                      prefs.resetExcluded(pet.id);
+                      Set<Integer> ex = prefs.excluded(pet);
+                      for (int i = 0; i < boxes.size(); i++) boxes.get(i).setChecked(!ex.contains(pet.clips.get(i).id));
+                      prefs.resetExcluded(pet.id);
+                      updateExpand.run();
+                  }), weighted());
+                  list.addView(tools);
+                  root.addView(list);
+              }
+
+              private void playPreview(Pets.Clip c) {
+                  stopPreview();
+                  MediaPlayer mp = new MediaPlayer();
+                  try (AssetFileDescriptor afd = getAssets().openFd(c.file)) {
+                      mp.setAudioAttributes(new AudioAttributes.Builder()
+                              .setUsage(AudioAttributes.USAGE_MEDIA)
+                              .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build());
+                      mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+                      mp.prepare();
+                  } catch (Exception e) {
+                      mp.release();
+                      return;
+                  }
+                  float vol = prefs.volume() / 100f;
+                  mp.setVolume(vol, vol);
+                  mp.setOnCompletionListener(done -> {
+                      if (preview == done) preview = null;
+                      done.release();
+                  });
+                  preview = mp;
+                  mp.start();
+              }
+
+              private void stopPreview() {
+                  if (preview != null) {
+                      try { preview.stop(); } catch (RuntimeException ignored) { }
+                      preview.release();
+                      preview = null;
+                  }
+              }
+
+              // ------------------------------------------------------------------ 小工具
+
+              interface BoolSink { void set(boolean v); }
+
+              interface SeekSink { void set(int value, boolean done); }
+
+              private LinearLayout column() {
+                  LinearLayout l = new LinearLayout(this);
+                  l.setOrientation(LinearLayout.VERTICAL);
+                  return l;
+              }
+
+              private LinearLayout row() {
+                  LinearLayout l = new LinearLayout(this);
+                  l.setOrientation(LinearLayout.HORIZONTAL);
+                  return l;
+              }
+
+              private LinearLayout.LayoutParams weighted() {
+                  return new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+              }
+
+              private TextView text(String s, int sp) {
+                  TextView t = new TextView(this);
+                  t.setText(s);
+                  t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+                  t.setPadding(0, dp(6), 0, dp(2));
+                  return t;
+              }
+
+              private TextView hint(String s) {
+                  TextView t = text(s, 12);
+                  t.setAlpha(0.65f);
+                  return t;
+              }
+
+              private TextView header(String s) {
+                  TextView t = text(s, 18);
+                  t.setTypeface(Typeface.DEFAULT_BOLD);
+                  t.setPadding(0, dp(22), 0, dp(4));
+                  return t;
+              }
+
+              private Button button(String s, View.OnClickListener l) {
+                  Button b = new Button(this);
+                  b.setText(s);
+                  b.setAllCaps(false);
+                  if (l != null) b.setOnClickListener(l);
+                  return b;
+              }
+
+              private Switch toggle(String s, boolean on, BoolSink sink) {
+                  Switch sw = new Switch(this);
+                  sw.setText(s);
+                  sw.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+                  sw.setChecked(on);
+                  sw.setPadding(0, dp(8), 0, dp(4));
+                  sw.setOnCheckedChangeListener((b, v) -> sink.set(v));
+                  return sw;
+              }
+
+              private SeekBar seek(int min, int max, int value, SeekSink sink) {
+                  SeekBar sb = new SeekBar(this);
+                  sb.setMin(min);
+                  sb.setMax(max);
+                  sb.setProgress(value);
+                  sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      @Override
+                      public void onProgressChanged(SeekBar s, int p, boolean fromUser) { sink.set(p, false); }
+
+                      @Override
+                      public void onStartTrackingTouch(SeekBar s) { }
+
+                      @Override
+                      public void onStopTrackingTouch(SeekBar s) { sink.set(s.getProgress(), true); }
+                  });
+                  return sb;
+              }
+
+              private int dp(float v) {
+                  return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()));
+              }
+          }
+          PETTRIO_FILE_END
+          mkdir -p "$(dirname 'tools/prepare_assets.py')"
+          cat > 'tools/prepare_assets.py' <<'PETTRIO_FILE_END'
+          #!/usr/bin/env python3
+          """把三个原版仓库的音频、头像和台词表整理成安卓 App 用的 assets。
+
+          用法：python3 tools/prepare_assets.py <上游仓库所在目录> <本项目根目录>
+
+          只用 Python 标准库。开头静音（lead）和真实时长（probe）事先用 ffmpeg 量好，放在 tools/leads.json，
+          接话时按它补偿起播时刻，算法和 macOS 原版的 leadingSilence 一致。
+          """
+          import json
+          import os
+          import shutil
+          import sys
+
+          # 顺序 = 屏幕上从上到下的摆放顺序，也是接话链的顺序。
+          PETS = [
+              # id,        名字,     上游仓库,              接话句池（None = 全部句子，[] = 只说不接）
+              ("shaolan", "薄肌",   "ShaolanPet",          []),
+              ("sun",     "太对了", "SunPet",              [1, 2, 4, 11, 13, 14]),
+              ("fengge",  "峰哥",   "FengGe-Desktop-Pet",  None),
+          ]
+
+
+          def main():
+              if len(sys.argv) != 3:
+                  sys.exit(__doc__)
+              upstream, project = sys.argv[1], sys.argv[2]
+              leads = json.load(open(os.path.join(project, "tools", "leads.json"), encoding="utf-8"))
+              assets = os.path.join(project, "app", "src", "main", "assets", "pets")
+              if os.path.isdir(assets):
+                  shutil.rmtree(assets)
+              os.makedirs(assets)
+
+              out = []
+              for pid, name, repo, companion in PETS:
+                  src = os.path.join(upstream, repo, "Assets")
+                  dst = os.path.join(assets, pid)
+                  os.makedirs(dst)
+                  shutil.copyfile(os.path.join(src, "face.png"), os.path.join(dst, "face.png"))
+                  clips = json.load(open(os.path.join(src, "clips.json"), encoding="utf-8"))
+                  items = []
+                  for c in clips:
+                      shutil.copyfile(os.path.join(src, "Clips", c["file"]), os.path.join(dst, c["file"]))
+                      m = leads.get(pid, {}).get(c["file"], {})
+                      items.append({
+                          "id": c["id"],
+                          "label": c["label"],
+                          "file": "pets/%s/%s" % (pid, c["file"]),
+                          "duration": m.get("probe", c.get("duration", 1.0)),
+                          "lead": m.get("lead", 0.0),
+                          "defaultOff": bool(c.get("defaultOff", False)),
+                      })
+                  comp = [c["id"] for c in clips] if companion is None else companion
+                  out.append({"id": pid, "name": name, "face": "pets/%s/face.png" % pid,
+                              "companion": comp, "clips": items})
+                  print("%-8s %2d 句" % (name, len(items)))
+
+              with open(os.path.join(assets, "pets.json"), "w", encoding="utf-8") as f:
+                  json.dump({"pets": out}, f, ensure_ascii=False, indent=1)
+
+              # App 图标用太对了的头像。
+              icon_dir = os.path.join(project, "app", "src", "main", "res", "drawable-nodpi")
+              os.makedirs(icon_dir, exist_ok=True)
+              shutil.copyfile(os.path.join(upstream, "SunPet", "Assets", "face.png"), os.path.join(icon_dir, "app_icon.png"))
+              print("assets 准备好了：", assets)
+
+
+          if __name__ == "__main__":
+              main()
+          PETTRIO_FILE_END
+          mkdir -p "$(dirname 'tools/fetch_upstream.sh')"
+          cat > 'tools/fetch_upstream.sh' <<'PETTRIO_FILE_END'
+          #!/usr/bin/env bash
+          # 拉取三个原版桌宠仓库（锁定到验证过的版本），音频和头像从这里来。
+          # 用法：bash tools/fetch_upstream.sh <目标目录>
+          set -euo pipefail
+          dest="${1:-upstream}"
+          mkdir -p "$dest"
+          while read -r repo sha; do
+            [ -z "$repo" ] && continue
+            if [ ! -d "$dest/$repo/.git" ]; then
+              git clone --quiet "https://github.com/Ganzhe2028/$repo.git" "$dest/$repo"
+            fi
+            git -C "$dest/$repo" checkout --quiet "$sha"
+            echo "$repo @ $sha"
+          done <<'EOF'
+          SunPet 1390a508584fc7c83e553d3a9fd74202897c7e32
+          ShaolanPet 7ce7e2b1ed49c4da66d19d5aac419794af0d32db
+          FengGe-Desktop-Pet d3336debfafc37963ec5612cb27793e250228b9b
+          EOF
+          PETTRIO_FILE_END
+          mkdir -p "$(dirname 'tools/leads.json')"
+          cat > 'tools/leads.json' <<'PETTRIO_FILE_END'
+          {"sun": {"01.m4a": {"lead": 0.25, "probe": 0.88}, "02.m4a": {"lead": 0.003, "probe": 0.84}, "03.m4a": {"lead": 0.399, "probe": 2.58}, "04.m4a": {"lead": 0.001, "probe": 1.04}, "05.m4a": {"lead": 0.001, "probe": 1.08}, "06.m4a": {"lead": 0.001, "probe": 2.23}, "07.m4a": {"lead": 0.531, "probe": 1.64}, "08.m4a": {"lead": 0.003, "probe": 2.92}, "09.m4a": {"lead": 0.09, "probe": 1.48}, "10.m4a": {"lead": 0.164, "probe": 1.23}, "11.m4a": {"lead": 0.058, "probe": 0.79}, "12.m4a": {"lead": 0.267, "probe": 1.08}, "13.m4a": {"lead": 0.111, "probe": 0.58}, "14.m4a": {"lead": 0.322, "probe": 1.0}, "15.m4a": {"lead": 0.295, "probe": 1.08}, "16.m4a": {"lead": 0.055, "probe": 2.0}, "17.m4a": {"lead": 0.008, "probe": 2.32}, "18.m4a": {"lead": 0.15, "probe": 1.44}, "19.m4a": {"lead": 0.101, "probe": 2.21}, "20.m4a": {"lead": 0.23, "probe": 2.33}, "21.m4a": {"lead": 0.007, "probe": 2.12}, "22.m4a": {"lead": 0.034, "probe": 3.12}, "23.m4a": {"lead": 0.009, "probe": 1.9}, "24.m4a": {"lead": 0.255, "probe": 1.68}, "25.m4a": {"lead": 0.219, "probe": 1.04}, "26.m4a": {"lead": 0.283, "probe": 1.36}, "27.m4a": {"lead": 0.069, "probe": 1.84}, "28.m4a": {"lead": 0.084, "probe": 2.3}}, "shaolan": {"01.wav": {"lead": 0.0, "probe": 0.81}, "02.wav": {"lead": 0.0, "probe": 0.727}, "03.wav": {"lead": 0.021, "probe": 0.996}, "04.wav": {"lead": 0.189, "probe": 1.61}, "05.wav": {"lead": 0.001, "probe": 1.15}, "06.wav": {"lead": 0.006, "probe": 1.07}, "07.wav": {"lead": 0.0, "probe": 1.19}, "08.wav": {"lead": 0.001, "probe": 1.07}, "09.wav": {"lead": 0.0, "probe": 0.77}, "10.wav": {"lead": 0.0, "probe": 1.35}, "11.wav": {"lead": 0.0, "probe": 2.063}, "12.wav": {"lead": 0.004, "probe": 1.17}, "13.wav": {"lead": 0.002, "probe": 1.25}, "14.wav": {"lead": 0.004, "probe": 1.301}, "15.wav": {"lead": 0.0, "probe": 1.07}, "16.wav": {"lead": 0.035, "probe": 1.5}, "17.wav": {"lead": 0.0, "probe": 1.87}, "18.wav": {"lead": 0.0, "probe": 0.65}, "19.wav": {"lead": 0.0, "probe": 1.43}, "20.wav": {"lead": 0.0, "probe": 1.004}, "21.wav": {"lead": 0.0, "probe": 0.762}, "22.wav": {"lead": 0.0, "probe": 1.319}, "23.wav": {"lead": 0.0, "probe": 1.23}, "24.wav": {"lead": 0.0, "probe": 1.23}, "25.wav": {"lead": 0.0, "probe": 1.37}, "26.wav": {"lead": 0.0, "probe": 2.21}, "27.wav": {"lead": 0.0, "probe": 1.71}, "28.wav": {"lead": 0.001, "probe": 1.43}, "29.wav": {"lead": 0.0, "probe": 1.97}, "30.wav": {"lead": 0.176, "probe": 2.284}, "31.wav": {"lead": 0.0, "probe": 2.37}, "32.wav": {"lead": 0.0, "probe": 1.41}, "33.wav": {"lead": 0.0, "probe": 1.89}, "34.wav": {"lead": 0.0, "probe": 1.13}, "35.wav": {"lead": 0.0, "probe": 0.99}, "36.wav": {"lead": 0.0, "probe": 1.07}, "37.wav": {"lead": 0.0, "probe": 0.83}}, "fengge": {"01.wav": {"lead": 0.062, "probe": 1.075}, "02.wav": {"lead": 0.098, "probe": 0.915}, "03.wav": {"lead": 0.145, "probe": 1.655}, "04.wav": {"lead": 0.063, "probe": 1.09}, "05.wav": {"lead": 0.071, "probe": 1.28}, "06.wav": {"lead": 0.099, "probe": 1.085}, "07.wav": {"lead": 0.026, "probe": 1.507}, "08.wav": {"lead": 0.09, "probe": 0.87}, "09.wav": {"lead": 0.061, "probe": 1.155}, "10.wav": {"lead": 0.04, "probe": 0.935}, "11.wav": {"lead": 0.164, "probe": 1.4}}}
+          PETTRIO_FILE_END
+          mkdir -p "$(dirname 'README.md')"
+          cat > 'README.md' <<'PETTRIO_FILE_END'
+          # 桌宠三连 · 安卓版
+
+          薄肌 · 太对了 · 峰哥，三个人头浮在手机屏幕上，点一下说一句，凑在一起会接话。
+
+          移植自 macOS 原版：[SunPet](https://github.com/Ganzhe2028/SunPet)、[ShaolanPet](https://github.com/Ganzhe2028/ShaolanPet)、[FengGe-Desktop-Pet](https://github.com/Ganzhe2028/FengGe-Desktop-Pet)。
+
+          ## 怎么玩
+
+          | 操作 | 结果 |
+          | --- | --- |
+          | 点人头 | 随机说一句，带字幕和摇头动画；一轮播完前不重复 |
+          | 点薄肌 | 四句一串：薄肌 → 太对了 → 峰哥 → 太对了 |
+          | 点峰哥 | 太对了接一句就停 |
+          | 点太对了 | 只说自己的 |
+          | 拖动 | 换位置，退出后还记得 |
+          | 长按人头 | 打开设置 |
+          | 摇手机（默认关） | 太对了说一句 |
+          | 通知栏 | 隐藏 / 显示 / 退出 |
+
+          设置页里每个角色都能单独：显示或隐藏、随机或固定播一句、勾选轮播内容（每句带 ▶ 试听）。全局可调音量、头像大小、捧哏联动开关。
+
+          薄肌默认只开 8 句能独立成立的（和原版一致），其余 29 句在「轮播内容」里勾回来。
+
+          ## 编译（不需要电脑）
+
+          APK 由 GitHub Actions 在云端编译，音频和头像在编译时从三个原版仓库拉取（锁定版本），本仓库不分发素材。
+
+          1. 新建一个 GitHub 仓库，把本项目全部文件传上去（`.github/workflows/build.yml` 一定要在）。
+          2. push 到 `main` 后 Actions 自动开始跑，约 3–5 分钟。
+          3. 跑完去仓库的 **Releases**，下载 `PetTrio.apk`。
+
+          ## 安装
+
+          1. 手机允许「安装未知来源应用」，装 `PetTrio.apk`。
+          2. 打开「桌宠三连」→ 授予「显示在其他应用上层」→ 允许通知。
+          3. 点「召唤桌宠」。
+
+          所有版本用同一个签名，以后重新编译的新版可以直接覆盖安装。
+
+          国产系统（MIUI / HyperOS、ColorOS、OriginOS、鸿蒙等）后台管得严，桌宠被杀的话：在系统设置里把「桌宠三连」设为电池「无限制」/ 允许自启动 / 在最近任务里锁定。
+
+          ## 用电脑编译
+
+          ```sh
+          bash tools/fetch_upstream.sh upstream
+          python3 tools/prepare_assets.py upstream .
+          gradle :app:assembleRelease      # 需要 JDK 17、Android SDK 34、Gradle 8.9
+          ```
+
+          或者跑完前两步后用 Android Studio 打开。
+
+          ## 素材声明
+
+          音频和头像版权归原权利人，**不在 MIT 许可范围内**，仅供学习交流和玩梗，请勿商用。来源与时间码见三个原版仓库的 `NOTICE.md` 和 `Assets/clips.json`。交互、句池和接话节奏（默认提前 0.3 秒、第二跳 0.2 秒、按每句开头静音补偿）沿用原版设计。
+
+          签名密钥 `app/pettrio.keystore` 是为这个小玩具生成的一次性密钥，密码写在 `app/build.gradle` 里，不要拿去签别的东西。
+          PETTRIO_FILE_END
+          base64 -d > app/pettrio.keystore <<'PETTRIO_FILE_END'
+          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
+          LAICJxA=
+          PETTRIO_FILE_END
+          find . -type f -not -path './.git/*' | sort
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: 拉取三个原版桌宠的素材
+        run: bash tools/fetch_upstream.sh "$RUNNER_TEMP/upstream"
+
+      - name: 整理 assets
+        run: python3 tools/prepare_assets.py "$RUNNER_TEMP/upstream" .
+
+      - name: 编译 APK
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: 改名
+        run: cp app/build/outputs/apk/release/app-release.apk PetTrio.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PetTrio-apk
+          path: PetTrio.apk
+
+      - name: 发布到 Releases（手机上直接点链接下载）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "build-${{ github.run_number }}" PetTrio.apk \
+            --repo "${{ github.repository }}" \
+            --title "桌宠三连 · 第 ${{ github.run_number }} 版" \
+            --notes "下载 PetTrio.apk 装到手机。首次打开授予「显示在其他应用上层」权限，然后点「召唤桌宠」。"
